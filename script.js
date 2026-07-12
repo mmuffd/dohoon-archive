@@ -5,10 +5,6 @@ const EDIT_PASSWORD = 'ff060526';
 const SUPABASE_URL = 'https://fcxwfdawbydrkwdnfeth.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjeHdmZGF3Ynlkcmt3ZG5mZXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NTg0NDgsImV4cCI6MjA5OTQzNDQ0OH0.Skp3sCQnseLTjKgdDkNThppHU-IzGzYwcBkfmuaQTOs';
 
-let supabaseClient = null;
-let supabaseLoading = false;
-let pendingSync = false; // SDK 加载完成后是否需要上传
-
 /* ===== 阿里云 OSS 配置 ===== */
 const OSS_CONFIG = {
   bucket: 'dohoon-images',
@@ -17,52 +13,53 @@ const OSS_CONFIG = {
   accessKeySecret: 'ivnB3xSr7l5wpfJLXdWTMRI2X2SQQg'
 };
 
-function getSupabase() {
-  if (supabaseClient) return supabaseClient;
-  if (!supabaseLoading) {
-    supabaseLoading = true;
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-    script.async = true;
-    script.onload = () => {
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      // SDK 到账：先拉云端，再推送待同步数据
-      syncFromSupabase().then(() => {
-        if (pendingSync) {
-          pendingSync = false;
-          uploadToSupabase().catch(() => {});
-        }
-      });
-    };
-    document.head.appendChild(script);
+/* ===== Supabase REST API (无需 CDN) ===== */
+const SB = {
+  url: SUPABASE_URL,
+  key: SUPABASE_KEY,
+  headers() { return { apikey: this.key, Authorization: 'Bearer ' + this.key, 'Content-Type': 'application/json' }; },
+  async getState() {
+    const r = await fetch(`${this.url}/rest/v1/site_state?id=eq.1&select=state_data`, { headers: this.headers() });
+    if (!r.ok) throw new Error('GET failed');
+    return r.json();
+  },
+  async updateState(data) {
+    const r = await fetch(`${this.url}/rest/v1/rpc/update_state`, { method: 'POST', headers: this.headers(), body: JSON.stringify(data) });
+    return r.json();
+  },
+  async uploadImage(file) {
+    const ext = file.name.split('.').pop() || 'jpg';
+    const fname = Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+    const h = { apikey: this.key, Authorization: 'Bearer ' + this.key };
+    const r = await fetch(`${this.url}/storage/v1/object/images/${fname}`, { method: 'POST', headers: h, body: file });
+    if (!r.ok) throw new Error('Upload failed');
+    return `${this.url}/storage/v1/object/public/images/${fname}`;
   }
-  return null;
-}
+};
+
 
 async function syncFromSupabase() {
-  const s = supabaseClient;
-  if (!s) return;
   try {
-    const result = await Promise.race([
-      s.from('site_state').select('state_data').eq('id', 1).single(),
+    const rows = await Promise.race([
+      SB.getState(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
     ]);
-    if (!result.error && result.data?.state_data && Object.keys(result.data.state_data).length > 0) {
-      const parsed = result.data.state_data;
+    if (rows && rows[0] && rows[0].state_data && Object.keys(rows[0].state_data).length > 0) {
+      const parsed = rows[0].state_data;
       applyMigration(parsed);
       migrateAbout(parsed);
       state = { ...defaultState, ...parsed,
         insPosts: parsed.insPosts || state.insPosts, wvsPosts: parsed.wvsPosts || state.wvsPosts,
         tmiItems: parsed.tmiItems || state.tmiItems, stageItems: parsed.stageItems || state.stageItems,
-        records: parsed.records || state.records };
+        records: parsed.records || state.records,
+        customSections: parsed.customSections || [],
+        deletedSections: parsed.deletedSections || [] };
       sortAll();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       renderAll();
     }
   } catch (e) {}
 }
-
-const IS_LOCAL = window.location.protocol === 'file:';
 
 /* ===== 字段配置（驱动模态框表单）===== */
 const FIELD_CONFIGS = {
@@ -108,17 +105,31 @@ const TYPE_LABELS = {
   about: '简介'
 };
 
+/* ===== 自定义区字段模板 ===== */
+const CS_ITEM_FIELDS = [
+  { key: 'date', label: '日期', type: 'date' },
+  { key: 'text', label: '正文', type: 'textarea' },
+  { key: 'images', label: '🖼 图片', type: 'files' }
+];
+
 const defaultState = {
   eyebrow: 'TWS · Kim Dohoon',
   heroTitle: '为金道勋打造一座只属于你的追星记忆站',
   heroText: '这里用来收纳他在 Instagram 与 Weverse 上发布的动态、舞台上的每一次亮相、以及那些让人一眼就想收藏的 TMI 小细节。',
   heroCardTitle: 'Kim Dohoon',
   heroCardText: '把每一次更新都整理成一张张卡片，方便你随时回看他在舞台上和生活里留下的每一份光。',
+  insEyebrow: 'Instagram',
   insPostsTitle: '记录金道勋的 Instagram 动态',
+  wvsEyebrow: 'Weverse',
   wvsPostsTitle: '记录金道勋的 Weverse 动态',
+  tmiEyebrow: 'TMI',
   tmiTitle: '那些你想反复翻看的细节',
+  stageEyebrow: '舞台',
   stageTitle: '每一场演出都是一段记忆',
+  recordsEyebrow: '记忆册',
   recordsTitle: '照片与文字记录',
+  aboutEyebrow: 'ABOUT',
+  footerText: '把这里当作你专属于金道勋的追星档案库，慢慢长大。',
   about: {
     title: 'Kim Dohoon · TWS',
     text: '这是你为金道勋建立的专属页面，记录他在舞台上、镜头前、留言里留下的每一道光。',
@@ -166,7 +177,9 @@ const defaultState = {
     { date: '2026.05', title: '音乐节登场', text: '现场的热闹与他的专注，让每一个镜头都像在发光。', link: '', image: '' },
     { date: '2026.03', title: '特别舞台', text: '那场特别编排让所有人都记住了他站在舞台中央的模样。', link: '', image: '' }
   ],
-  records: []
+  records: [],
+  customSections: [],
+  deletedSections: []
 };
 
 let state = { ...defaultState };
@@ -177,10 +190,9 @@ let modalState = { type: null, index: null, mode: 'view' }; // 'view' | 'edit' |
 
 /* ===== 持久化（Supabase + localStorage 双写）===== */
 function loadState() {
-  // 读本地 → 秒开
   loadFromLocal();
-  // 后台触发 Supabase SDK 加载（完全不阻塞）
-  getSupabase();
+  // 后台从云端拉数据（fetch 直连，无 CDN 依赖）
+  syncFromSupabase().then(() => renderAll()).catch(() => {});
 }
 
 function loadFromLocal() {
@@ -196,8 +208,9 @@ function loadFromLocal() {
         wvsPosts: parsed.wvsPosts || defaultState.wvsPosts,
         tmiItems: parsed.tmiItems || defaultState.tmiItems,
         stageItems: parsed.stageItems || defaultState.stageItems,
-        records: parsed.records || defaultState.records
-      };
+        records: parsed.records || defaultState.records,
+        customSections: parsed.customSections || [],
+        deletedSections: parsed.deletedSections || [] };
       // 旧 aboutTitle/aboutText 迁移到 about 对象
       migrateAbout(parsed);
       sortAll();
@@ -261,20 +274,11 @@ function applyMigration(parsed) {
 }
 
 async function uploadToSupabase() {
-  const s = getSupabase();
-  if (!s) {
-    // SDK 还没加载完，标记待同步
-    pendingSync = true;
-    return;
-  }
   try {
-    await s.rpc('update_state', {
-      p_state: state,
-      p_password: EDIT_PASSWORD
-    });
-    console.log('已同步到云端');
+    await SB.updateState({ p_state: state, p_password: EDIT_PASSWORD });
+    console.log('✅ 已同步到云端');
   } catch (e) {
-    console.warn('上传 Supabase 失败:', e.message);
+    console.warn('云端同步失败:', e.message);
   }
 }
 
@@ -302,16 +306,27 @@ function sortAll() {
       state[key].sort((a, b) => {
         const da = parseDate(a.date);
         const db = parseDate(b.date);
-        return db - da; // 最新的在前
+        return db - da;
       });
     }
   });
-  // records 按 createdAt
   if (Array.isArray(state.records)) {
     state.records.sort((a, b) => {
       const da = parseDate(a.createdAt);
       const db = parseDate(b.createdAt);
       return db - da;
+    });
+  }
+  // 自定义区
+  if (Array.isArray(state.customSections)) {
+    state.customSections.forEach(sec => {
+      if (Array.isArray(sec.items)) {
+        sec.items.sort((a, b) => {
+          const da = parseDate(a.date);
+          const db = parseDate(b.date);
+          return db - da;
+        });
+      }
     });
   }
 }
@@ -322,6 +337,21 @@ function getItem(type, index) {
   if (!Array.isArray(state[type])) return state[type];
   return state[type][index] || null;
 }
+
+/* ===== 自定义区工具函数 ===== */
+function findCustomSection(id) {
+  return (state.customSections || []).find(s => s.id === id) || null;
+}
+
+function getCSItem(type, index) {
+  // type format: "custom_s_1234567890"
+  const secId = type.replace('custom_', '');
+  const sec = findCustomSection(secId);
+  if (!sec || !sec.items) return null;
+  return sec.items[index] || null;
+}
+
+function csTypeFromId(id) { return 'custom_' + id; }
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve) => {
@@ -342,22 +372,12 @@ async function uploadImageToStorage(file) {
     const contentType = file.type || 'image/jpeg';
     const dateStr = new Date().toUTCString();
     const stringToSign = `PUT\n\n${contentType}\n${dateStr}\n/dohoon-images/${fname}`;
-
     const encoder = new TextEncoder();
     const keyData = encoder.encode(OSS_CONFIG.accessKeySecret);
     const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
     const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
     const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
-
-    const resp = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': contentType,
-        'Date': dateStr,
-        'Authorization': `OSS ${OSS_CONFIG.accessKeyId}:${sigB64}`
-      },
-      body: file
-    });
+    const resp = await fetch(url, { method: 'PUT', headers: { 'Content-Type': contentType, 'Date': dateStr, 'Authorization': `OSS ${OSS_CONFIG.accessKeyId}:${sigB64}` }, body: file });
     if (resp.ok) return url;
     throw new Error('OSS: ' + resp.status);
   } catch (e) {
@@ -476,6 +496,152 @@ function renderRecords() {
   `}).join('');
 }
 
+/* ===== 自定义区渲染 ===== */
+function renderCustomSections() {
+  const container = document.getElementById('custom-sections');
+  const navCustom = document.getElementById('nav-custom');
+  if (!container) return;
+
+  const sections = state.customSections || [];
+  container.innerHTML = '';
+
+  sections.filter(sec => !state.deletedSections.includes('cs_' + sec.id)).forEach(sec => {
+    const sectionEl = document.createElement('section');
+    sectionEl.className = 'section';
+    sectionEl.id = 'cs-' + sec.id;
+    sectionEl.innerHTML = `
+      <div class="section-header">
+        <div>
+          <p class="eyebrow" data-edit-key="${'csEyebrow_' + sec.id}">
+            ${state['csEyebrow_' + sec.id] || '自定义'}
+            ${editMode ? `<button class="cs-eyebrow-btn mini-btn" data-cs-id="${sec.id}" type="button">✏️</button>` : ''}
+          </p>
+          <h2>
+            <span class="cs-name-text" data-cs-id="${sec.id}">${sec.name}</span>
+            ${editMode ? `<button class="cs-rename-btn mini-btn" data-cs-id="${sec.id}" type="button">✏️</button>` : ''}
+          </h2>
+        </div>
+        <div class="cs-header-btns">
+          ${editMode ? `<button class="cs-add-btn mini-btn" data-cs-id="${sec.id}" type="button">+ 新增帖子</button>` : ''}
+          ${editMode ? `<button class="cs-del-btn mini-btn" data-cs-id="${sec.id}" type="button" style="color:#e55;">🗑</button>` : ''}
+        </div>
+      </div>
+      <div class="card-grid" id="cs-grid-${sec.id}">
+        ${(sec.items || []).map((item, i) => {
+          const imgs = item.images || [];
+          const thumb = imgs.length ? imgs[0] : '';
+          return `<article class="card" data-type="${csTypeFromId(sec.id)}" data-index="${i}">
+            ${thumb ? `<img src="${thumb}" class="card-thumb" alt="" />` : ''}
+            ${imgs.length > 1 ? `<span class="img-count">${imgs.length} 张图片</span>` : ''}
+            <div class="post-meta">${item.date || ''}</div>
+            <h3>${item.text ? (item.text || '').slice(0, 30) + ((item.text || '').length > 30 ? '...' : '') : '新帖子'}</h3>
+          </article>`;
+        }).join('')}
+      </div>
+    `;
+    container.appendChild(sectionEl);
+  });
+
+  // 编辑模式按钮事件（渲染后绑定）
+  if (editMode) {
+    bindCSSectionEvents();
+  }
+}
+
+function bindCSSectionEvents() {
+  document.querySelectorAll('.cs-add-btn').forEach(btn => {
+    btn.onclick = () => { openCreateModal(csTypeFromId(btn.dataset.csId)); };
+  });
+  document.querySelectorAll('.cs-del-btn').forEach(btn => {
+    btn.onclick = () => deleteCustomSection(btn.dataset.csId);
+  });
+  document.querySelectorAll('.cs-rename-btn').forEach(btn => {
+    btn.onclick = () => renameCustomSection(btn.dataset.csId);
+  });
+  document.querySelectorAll('.cs-eyebrow-btn').forEach(btn => {
+    btn.onclick = () => {
+      const key = 'csEyebrow_' + btn.dataset.csId;
+      const cur = state[key] || '自定义';
+      const newVal = prompt('修改粉红小字：', cur);
+      if (newVal !== null && newVal.trim()) {
+        state[key] = newVal.trim();
+        saveState();
+        renderCustomSections();
+        bindCSSectionEvents();
+      }
+    };
+  });
+}
+
+function createCustomSection() {
+  if (!editMode) return;
+  const name = prompt('请输入新区块名称：');
+  if (!name || !name.trim()) return;
+  const id = 's_' + Date.now();
+  state.customSections.unshift({ id, name: name.trim(), items: [] });
+  state['csEyebrow_' + id] = '自定义';
+  saveState();
+  renderCustomSections();
+  updateNavCustom();
+  updateEditMode(editMode);
+}
+
+function deleteCustomSection(id) {
+  if (!confirm('确定要删除整个「' + (findCustomSection(id)?.name || '') + '」区块吗？所有帖子将丢失。')) return;
+
+  // 记录到 deletedSections，后续可恢复
+  if (!state.deletedSections.includes('cs_' + id)) {
+    state.deletedSections.push('cs_' + id);
+  }
+
+  saveState();
+  renderCustomSections();
+  updateNavCustom();
+}
+
+function renameCustomSection(id) {
+  const sec = findCustomSection(id);
+  if (!sec) return;
+  const name = prompt('修改区块名称：', sec.name);
+  if (!name || !name.trim()) return;
+  sec.name = name.trim();
+  saveState();
+  renderCustomSections();
+  updateNavCustom();
+}
+
+function updateNavCustom() {
+  const navEl = document.getElementById('nav-custom');
+  if (!navEl) return;
+
+  const customLinks = (state.customSections || [])
+    .filter(sec => !state.deletedSections.includes('cs_' + sec.id))
+    .map(sec => `<a href="#cs-${sec.id}">${sec.name}</a>`);
+
+  navEl.innerHTML = customLinks.join('');
+
+  // 固定区块：如果被删除就隐藏对应的导航链接
+  document.querySelectorAll('.nav-fixed').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const key = hrefToKey(href);
+    if (key && state.deletedSections.includes(key)) {
+      a.style.display = 'none';
+    } else {
+      a.style.display = '';
+    }
+  });
+}
+
+function hrefToKey(href) {
+  if (href === '#ins-posts') return 'insPosts';
+  if (href === '#wvs-posts') return 'wvsPosts';
+  if (href === '#tmi') return 'tmiItems';
+  if (href === '#stage') return 'stageItems';
+  if (href === '#records') return 'records';
+  if (href === '#about') return 'about';
+  return null;
+}
+
 function applyGlobalTexts() {
   document.querySelectorAll('[data-edit-key]').forEach((element) => {
     const key = element.dataset.editKey;
@@ -507,12 +673,101 @@ function updateEditMode(enabled) {
   });
   document.querySelectorAll('[data-edit-key]').forEach((element) => {
     element.contentEditable = enabled;
+    if (enabled) {
+      element.title = '点击直接编辑';
+      element.style.cursor = 'text';
+    } else {
+      element.removeAttribute('title');
+      element.style.cursor = '';
+    }
+  });
+
+  const csActions = document.getElementById('cs-actions');
+  if (csActions) csActions.style.display = enabled ? 'block' : 'none';
+
+  // 清除所有编辑专属按钮
+  document.querySelectorAll('.section-header-btn,.section-hide-btn').forEach(b => b.remove());
+
+  if (!enabled) {
+    renderAll();
+    return;
+  }
+
+  // === 以下仅编辑模式 ===
+
+  // 先渲染自定义区，后续 ✏️/🗑 才能找到它们的元素
+  renderCustomSections();
+
+  // 🗑 删除 / 恢复按钮
+  document.querySelectorAll('.section-header').forEach(header => {
+    const section = header.closest('[data-section-key]');
+    if (!section) return;
+    const key = section.dataset.sectionKey;
+    if (state.deletedSections.includes(key)) {
+      addRestoreBtn(header, key);
+    } else {
+      addDeleteBtn(header, key);
+    }
+  });
+  const aboutSection = document.querySelector('#about[data-section-key]');
+  if (aboutSection) {
+    const aboutContent = aboutSection.querySelector('.about-content');
+    if (aboutContent) {
+      const key = 'about';
+      if (state.deletedSections.includes(key)) {
+        addRestoreBtn(aboutContent, key);
+      } else {
+        addDeleteBtn(aboutContent, key);
+      }
+    }
+  }
+
+  function addDeleteBtn(parent, key) {
+    const btn = document.createElement('button');
+    btn.className = 'section-hide-btn mini-btn';
+    btn.textContent = '🗑 删除';
+    btn.type = 'button';
+    btn.style.cssText = 'margin-left:8px;color:#e55;';
+    btn.onclick = (e) => { e.stopPropagation(); deleteSectionData(key); };
+    parent.appendChild(btn);
+  }
+
+  function addRestoreBtn(parent, key) {
+    const btn = document.createElement('button');
+    btn.className = 'section-hide-btn mini-btn';
+    btn.textContent = '↩ 恢复';
+    btn.type = 'button';
+    btn.style.cssText = 'margin-left:8px;color:#4a9;';
+    btn.onclick = (e) => { e.stopPropagation(); restoreSection(key); };
+    parent.appendChild(btn);
+  }
+
+  // ✏️ 图标（跳过自定义区 — 它们模板里自带按钮）
+  document.querySelectorAll('[data-edit-key]').forEach(el => {
+    if (el.closest('#custom-sections')) return;
+    if (el.parentElement?.querySelector('.cs-rename-btn')) return;
+    const btn = document.createElement('button');
+    btn.className = 'section-header-btn';
+    btn.textContent = '✏️';
+    btn.type = 'button';
+    btn.title = '点击修改';
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const newVal = prompt('修改：', el.textContent.trim());
+      if (newVal !== null && newVal.trim()) {
+        el.textContent = newVal.trim();
+        state[el.dataset.editKey] = newVal.trim();
+        saveState();
+      }
+    };
+    el.insertAdjacentElement('afterend', btn);
   });
 
   if (document.getElementById('detail-modal').classList.contains('active')) {
     renderModalContent();
     initCarousel();
   }
+  updateNavCustom();
 }
 
 function handleEditToggle() {
@@ -577,10 +832,23 @@ function renderModalContent() {
 
   const isView = mode === 'view';
   const isCreate = mode === 'create';
-  const item = isCreate ? {} : (getItem(type, index) || {});
-  const fields = FIELD_CONFIGS[type] || [];
-  const label = TYPE_LABELS[type] || type;
-  const images = item.images || [];
+
+  const isCustom = type.startsWith('custom_');
+  let item, fields, label, images;
+
+  if (isCustom) {
+    item = isCreate ? {} : (getCSItem(type, index) || {});
+    fields = CS_ITEM_FIELDS;
+    const secId = type.replace('custom_', '');
+    const sec = findCustomSection(secId);
+    label = sec ? sec.name : '自定义区';
+    images = item.images || [];
+  } else {
+    item = isCreate ? {} : (getItem(type, index) || {});
+    fields = FIELD_CONFIGS[type] || [];
+    label = TYPE_LABELS[type] || type;
+    images = item.images || [];
+  }
 
   // 标题
   if (isCreate) {
@@ -735,16 +1003,19 @@ async function handleModalSave() {
     if (!type) return;
 
     const isCreate = mode === 'create';
-    const fields = FIELD_CONFIGS[type] || [];
+    const isCustom = type.startsWith('custom_');
+    const fields = isCustom ? CS_ITEM_FIELDS : (FIELD_CONFIGS[type] || []);
     const bodyEl = document.getElementById('modal-body');
     if (!bodyEl) return;
+
+    const getExistingItem = () => isCustom ? getCSItem(type, index) : getItem(type, index);
 
     const data = {};
     for (const field of fields) {
       if (field.type === 'files' || field.type === 'file') {
         const input = bodyEl.querySelector(`[data-field-key="${field.key}"]`);
         const files = input?.files;
-        const existingArr = isCreate ? [] : [...(getItem(type, index)?.[field.key] || [])];
+        const existingArr = isCreate ? [] : [...(getExistingItem()?.[field.key] || [])];
         if (files && files.length) {
           const urls = await uploadImagesToStorage(Array.from(files));
           existingArr.push(...urls);
@@ -756,23 +1027,23 @@ async function handleModalSave() {
       }
     }
 
-    if (isCreate) {
-      if (type === 'records') {
-        data.createdAt = new Date().toLocaleString('zh-CN');
+    if (isCustom) {
+      const secId = type.replace('custom_', '');
+      const sec = findCustomSection(secId);
+      if (sec) {
+        if (isCreate) sec.items.unshift(data);
+        else if (sec.items[index] !== undefined) sec.items[index] = { ...sec.items[index], ...data };
       }
+    } else if (isCreate) {
+      if (type === 'records') data.createdAt = new Date().toLocaleString('zh-CN');
       state[type].unshift(data);
     } else {
-      if (!Array.isArray(state[type])) {
-        state[type] = { ...state[type], ...data };
-      } else if (state[type][index] !== undefined) {
-        state[type][index] = { ...state[type][index], ...data };
-      }
+      if (!Array.isArray(state[type])) state[type] = { ...state[type], ...data };
+      else if (state[type][index] !== undefined) state[type][index] = { ...state[type][index], ...data };
     }
 
-    // 立即写本地
     sortAll();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    // 云端后台同步（不阻塞）
     uploadToSupabase().catch(() => {});
     renderAll();
     updateEditMode(editMode);
@@ -788,6 +1059,20 @@ function handleModalDelete() {
 
   if (!confirm('确定要删除这条内容吗？此操作不可撤销。')) return;
 
+  const isCustom = type.startsWith('custom_');
+  if (isCustom) {
+    const secId = type.replace('custom_', '');
+    const sec = findCustomSection(secId);
+    if (sec && sec.items && sec.items[index] !== undefined) {
+      sec.items.splice(index, 1);
+      saveState();
+      renderAll();
+      updateEditMode(editMode);
+      closeModal();
+    }
+    return;
+  }
+
   if (state[type] && state[type][index] !== undefined) {
     state[type].splice(index, 1);
     saveState();
@@ -798,13 +1083,171 @@ function handleModalDelete() {
 }
 
 /* ===== 统一渲染 ===== */
+function isHidden(key) {
+  return (state.hiddenSections || []).includes(key);
+}
+
+function deleteSectionData(key) {
+  if (!confirm('确定要删除这个区域吗？所有内容将丢失，不可撤销！')) return;
+
+  // 清除数据
+  if (Array.isArray(state[key])) {
+    state[key] = [];
+  } else if (key === 'about') {
+    state.about = { ...defaultState.about, link: '', images: [] };
+  }
+
+  // 标记为已删除 → 不再渲染
+  if (!state.deletedSections.includes(key)) {
+    state.deletedSections.push(key);
+  }
+
+  sortAll();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  uploadToSupabase().catch(() => {});
+
+  renderAll();
+  updateEditMode(editMode);
+}
+
+function restoreSection(key) {
+  state.deletedSections = state.deletedSections.filter(k => k !== key);
+  saveState();
+  renderAll();
+  updateEditMode(editMode);
+}
+
 function renderAll() {
   applyGlobalTexts();
-  renderInsPosts();
-  renderWvsPosts();
-  renderTmi();
-  renderStage();
-  renderRecords();
+  if (!state.deletedSections.includes('insPosts')) renderInsPosts(); else hideSection('insPosts');
+  if (!state.deletedSections.includes('wvsPosts')) renderWvsPosts(); else hideSection('wvsPosts');
+  if (!state.deletedSections.includes('tmiItems')) renderTmi(); else hideSection('tmiItems');
+  if (!state.deletedSections.includes('stageItems')) renderStage(); else hideSection('stageItems');
+  if (!state.deletedSections.includes('records')) renderRecords(); else hideSection('records');
+  if (!state.deletedSections.includes('about')) {
+    document.getElementById('about').style.display = '';
+  } else {
+    document.getElementById('about').style.display = 'none';
+  }
+  renderCustomSections();
+  updateNavCustom();
+}
+
+function hideSection(key) {
+  const el = document.querySelector(`[data-section-key="${key}"]`);
+  if (el) el.style.display = 'none';
+}
+
+/* ===== 搜索 & 日历过滤 ===== */
+function normalizeDate(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  // "2026-07-13" → "2026-07-13"
+  // "2026.07" → "2026-07"
+  // "2026/7/13 15:30" → "2026-07-13"
+  const d = new Date(s.replace(/\./g, '-').replace(/\//g, '-'));
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  return s.replace(/\./g, '-');
+}
+
+function getCardText(card) {
+  // 收集卡片所有文字
+  return (card.textContent || '').toLowerCase();
+}
+
+/* ALL_SECTIONS: key → [dom selector, card selector] */
+const ALL_SECTIONS = [
+  ['insPosts',      '#ins-posts',       '.card'],
+  ['wvsPosts',      '#wvs-posts',       '.card'],
+  ['tmiItems',      '#tmi',            '.card'],
+  ['stageItems',    '#stage',          '.timeline-item'],
+  ['records',       '#records',        '.record-card'],
+  ['about',         '#about',          '[data-type]']
+];
+
+function applyFilters() {
+  const keyword = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+  const pickDate = document.getElementById('search-date')?.value || '';
+  unmarkAll();
+
+  // 1. 所有卡片：过滤 + 高亮
+  document.querySelectorAll('.card, .timeline-item, .record-card').forEach(card => {
+    let show = true;
+    if (keyword) show = (card.textContent||'').toLowerCase().includes(keyword);
+    if (show && pickDate) {
+      const de = card.querySelector('.post-meta,.timeline-date,.record-meta');
+      show = normalizeDate(de?.textContent?.trim()||'').startsWith(pickDate);
+    }
+    card.style.display = show ? '' : 'none';
+    if (show && keyword) highlightCardText(card, keyword);
+  });
+
+  // 2. 固定区域：无可见卡片 → 隐藏
+  ALL_SECTIONS.forEach(([key, sel, _]) => {
+    const sec = document.querySelector(sel);
+    if (!sec) return;
+    if (state.deletedSections.includes(key)) { sec.style.display='none'; return; }
+    if (!keyword && !pickDate) { sec.style.display=''; return; }
+    const cards = sec.querySelectorAll('.card, .timeline-item, .record-card');
+    sec.style.display = [...cards].every(c=>c.style.display==='none') ? 'none' : '';
+  });
+
+  // 3. 自定义区
+  document.querySelectorAll('#custom-sections .section').forEach(sec => {
+    const csKey = 'cs_' + sec.id.replace('cs-','');
+    if (state.deletedSections.includes(csKey)) { sec.style.display='none'; return; }
+    if (!keyword && !pickDate) { sec.style.display=''; return; }
+    const cards = sec.querySelectorAll('.card, .timeline-item, .record-card');
+    sec.style.display = [...cards].every(c=>c.style.display==='none') ? 'none' : '';
+  });
+}
+
+function highlightCardText(root, keyword) {
+  if (!keyword) return;
+  const lower = keyword.toLowerCase();
+  const queue = [];
+  (function walk(n) {
+    if (n.nodeType===3) { queue.push(n); }
+    else if (n.nodeType===1 && !['MARK','SCRIPT','STYLE'].includes(n.tagName)) {
+      for (let c=n.firstChild;c;c=c.nextSibling) walk(c);
+    }
+  })(root);
+  for (let i=0;i<queue.length;i++) {
+    const txt=queue[i], str=txt.textContent;
+    const idx=str.toLowerCase().indexOf(lower);
+    if (idx<0) continue;
+    const mar=document.createElement('mark');
+    mar.style.cssText='background:#ffe066;color:#333;border-radius:3px;padding:0 2px;';
+    mar.textContent=str.slice(idx,idx+keyword.length);
+    const frag=document.createDocumentFragment();
+    if (idx>0) frag.appendChild(document.createTextNode(str.slice(0,idx)));
+    frag.appendChild(mar);
+    const aft=str.slice(idx+keyword.length);
+    if (aft) { const t=document.createTextNode(aft); frag.appendChild(t); if (aft.toLowerCase().includes(lower)) queue.push(t); }
+    txt.parentNode.replaceChild(frag, txt);
+  }
+}
+
+function unmarkAll() {
+  [...document.querySelectorAll('mark')].forEach(m=>{
+    if (m.parentNode) { m.parentNode.replaceChild(document.createTextNode(m.textContent), m); m.parentNode.normalize(); }
+  });
+}
+
+function clearFilters() {
+  unmarkAll();
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-date').value = '';
+  document.querySelectorAll('.card,.timeline-item,.record-card').forEach(c=>c.style.display='');
+  ALL_SECTIONS.forEach(([key,sel])=>{
+    const s=document.querySelector(sel);
+    if (s) s.style.display = state.deletedSections.includes(key) ? 'none' : '';
+  });
+  document.querySelectorAll('#custom-sections .section').forEach(s=>{
+    s.style.display = state.deletedSections.includes('cs_'+s.id.replace('cs-','')) ? 'none' : '';
+  });
 }
 
 /* ===== 事件绑定 ===== */
@@ -865,6 +1308,18 @@ function attachEvents() {
   document.getElementById('add-stage-btn')?.addEventListener('click', () => {
     openCreateModal('stageItems');
   });
+
+  // "新增区域" 按钮
+  document.getElementById('add-section-btn')?.addEventListener('click', createCustomSection);
+
+  // ===== 搜索 & 日历 =====
+  let searchTimer = 0;
+  document.getElementById('search-input')?.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(applyFilters, 300);
+  });
+  document.getElementById('search-date')?.addEventListener('change', applyFilters);
+  document.getElementById('search-clear')?.addEventListener('click', clearFilters);
 
   // 模态框 — 关闭
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
