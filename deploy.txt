@@ -1,0 +1,20 @@
+请把整个文件夹内容上传到 Netlify 或 GitHub Pages：
+
+1. 进入 https://www.netlify.com/
+2. 点击 "Add new site" -> "Deploy manually"
+3. 拖入当前整个文件夹
+4. 发布完成后会得到一个公开链接
+
+如果你想用 GitHub Pages：
+1. 把当前文件夹上传到 GitHub 仓库
+2. 打开仓库 Settings -> Pages
+3. 选择 Deploy from a branch
+4. 选择 main 分支 / 根目录
+5. 生成公开地址
+
+当前项目包含：
+- index.html
+- styles.css
+- script.js
+- 404.html
+- README.md
