@@ -14,15 +14,24 @@
     <header class="topbar">
       <a class="brand" href="#home">DOHOON ARCHIVE</a>
       <nav class="nav-links" aria-label="主导航">
-        <a href="#about">简介</a>
-        <a href="#ins-posts">INS</a>
-        <a href="#wvs-posts">WVS</a>
-        <a href="#records">记忆册</a>
+        <a class="nav-fixed" href="#about">简介</a>
+        <a class="nav-fixed" href="#ins-posts">INS</a>
+        <a class="nav-fixed" href="#wvs-posts">WVS</a>
+        <a class="nav-fixed" href="#records">记忆册</a>
+        <span id="nav-custom"></span>
       </nav>
       <div class="header-actions">
         <button id="edit-toggle" class="btn small" type="button">进入编辑模式</button>
       </div>
     </header>
+
+    <div class="search-bar">
+      <div class="search-inner">
+        <input type="text" id="search-input" class="search-input" placeholder="🔍 搜索帖子正文...">
+        <input type="date" id="search-date" class="search-date">
+        <button id="search-clear" class="btn small" type="button">清除</button>
+      </div>
+    </div>
 
     <main id="home">
       <section class="hero">
@@ -45,11 +54,11 @@
         </div>
       </section>
 
-      <section class="section about-section" id="about">
+      <section class="section about-section" id="about" data-section-key="about">
         <article class="about-card" data-type="about" data-index="0">
           <div class="avatar-shell"><span>DO</span></div>
           <div class="about-content">
-            <p class="eyebrow">ABOUT</p>
+            <p class="eyebrow" data-edit-key="aboutEyebrow">ABOUT</p>
             <h3 data-edit-key="aboutTitle">Kim Dohoon · TWS</h3>
             <p class="about-text" data-edit-key="aboutText">
               这是你为金道勋建立的专属页面，记录他在舞台上、镜头前、留言里留下的每一道光。
@@ -58,10 +67,10 @@
         </article>
       </section>
 
-      <section class="section" id="ins-posts">
+      <section class="section" id="ins-posts" data-section-key="insPosts">
         <div class="section-header">
           <div>
-            <p class="eyebrow">Instagram</p>
+            <p class="eyebrow" data-edit-key="insEyebrow">Instagram</p>
             <h2 data-edit-key="insPostsTitle">记录金道勋的 Instagram 动态</h2>
           </div>
           <button id="add-ins-post-btn" class="mini-btn" type="button">+ 新增 INS 动态</button>
@@ -69,10 +78,10 @@
         <div id="ins-feed-list" class="card-grid"></div>
       </section>
 
-      <section class="section" id="wvs-posts">
+      <section class="section" id="wvs-posts" data-section-key="wvsPosts">
         <div class="section-header">
           <div>
-            <p class="eyebrow">Weverse</p>
+            <p class="eyebrow" data-edit-key="wvsEyebrow">Weverse</p>
             <h2 data-edit-key="wvsPostsTitle">记录金道勋的 Weverse 动态</h2>
           </div>
           <button id="add-wvs-post-btn" class="mini-btn" type="button">+ 新增 WVS 动态</button>
@@ -80,10 +89,10 @@
         <div id="wvs-feed-list" class="card-grid"></div>
       </section>
 
-      <section class="section" id="tmi">
+      <section class="section" id="tmi" data-section-key="tmiItems">
         <div class="section-header">
           <div>
-            <p class="eyebrow">TMI</p>
+            <p class="eyebrow" data-edit-key="tmiEyebrow">TMI</p>
             <h2 data-edit-key="tmiTitle">那些你想反复翻看的细节</h2>
           </div>
           <button id="add-tmi-btn" class="mini-btn" type="button">+ 新增 TMI</button>
@@ -91,10 +100,10 @@
         <div id="tmi-list" class="card-grid"></div>
       </section>
 
-      <section class="section" id="stage">
+      <section class="section" id="stage" data-section-key="stageItems">
         <div class="section-header">
           <div>
-            <p class="eyebrow">舞台</p>
+            <p class="eyebrow" data-edit-key="stageEyebrow">舞台</p>
             <h2 data-edit-key="stageTitle">每一场演出都是一段记忆</h2>
           </div>
           <button id="add-stage-btn" class="mini-btn" type="button">+ 新增舞台</button>
@@ -102,10 +111,10 @@
         <div id="stage-list" class="timeline"></div>
       </section>
 
-      <section class="section" id="records">
+      <section class="section" id="records" data-section-key="records">
         <div class="section-header">
           <div>
-            <p class="eyebrow">记忆册</p>
+            <p class="eyebrow" data-edit-key="recordsEyebrow">记忆册</p>
             <h2 data-edit-key="recordsTitle">照片与文字记录</h2>
           </div>
           <button id="toggle-record-form-btn" class="mini-btn" type="button">+ 新增记录</button>
@@ -119,10 +128,18 @@
 
         <div id="records-list" class="record-list"></div>
       </section>
+
+      <!-- 自定义区块 -->
+      <div id="custom-sections"></div>
+
+      <!-- 新增区域按钮（编辑模式可见） -->
+      <div id="cs-actions" class="cs-actions" style="display:none;">
+        <button id="add-section-btn" class="btn btn-primary" type="button">+ 新增区域</button>
+      </div>
     </main>
 
     <footer class="footer">
-      <p>把这里当作你专属于金道勋的追星档案库，慢慢长大。</p>
+      <p data-edit-key="footerText">把这里当作你专属于金道勋的追星档案库，慢慢长大。</p>
     </footer>
 
     <!-- 详情模态框 -->
