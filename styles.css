@@ -78,8 +78,64 @@ img {
   font-size: 0.95rem;
 }
 
-.nav-links a:hover {
+.nav-links a:hover,
+#nav-custom a:hover {
   color: var(--accent);
+}
+
+#nav-custom a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.search-bar {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 247, 251, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.search-inner {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.85);
+  transition: border-color 0.15s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search-date {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.search-date:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 main {
@@ -868,4 +924,46 @@ main {
 
 .modal-image-preview:hover {
   opacity: 0.85;
+}
+
+/* ===== 自定义区块 ===== */
+.cs-actions {
+  text-align: center;
+  padding: 1rem 0 2rem;
+}
+
+.cs-header-btns {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.cs-rename-btn, .cs-del-btn, .cs-add-btn {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.cs-name-text {
+  cursor: default;
+}
+
+/* ✏️ 编辑图标按钮 */
+.section-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px dashed rgba(255, 143, 179, 0.4);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+
+.section-header-btn:hover {
+  background: rgba(255, 143, 179, 0.2);
 }
