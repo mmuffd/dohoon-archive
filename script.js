@@ -789,6 +789,17 @@ function renderModalContent() {
   // 主体内容
   let html = '';
 
+  // BGM 音频播放器（查看模式）
+  if (isView && item.bgm) {
+    html += `<div class="modal-field">
+      <label>🎵 BGM</label>
+      <audio controls style="width:100%;max-height:40px;">
+        <source src="${item.bgm}">
+      </audio>
+      <div class="field-value" style="font-size:0.8rem;"><a href="${item.bgm}" target="_blank">${item.bgm.slice(0,50)}...</a></div>
+    </div>`;
+  }
+
   // 查看模式：图片轮播在顶部
   if (isView && images.length) {
     html += buildImageCarousel(images);
