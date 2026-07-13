@@ -67,7 +67,7 @@ const FIELD_CONFIGS = {
   insPosts: [
     { key: 'date', label: '日期', type: 'date' },
     { key: 'detailText', label: '正文', type: 'textarea' },
-    { key: 'bgm', label: '🎵 BGM 链接', type: 'url' },
+    { key: 'bgm', label: '🎵 BGM', type: 'url' },
     { key: 'images', label: '🖼 图片', type: 'files' }
   ],
   wvsPosts: [
