@@ -49,16 +49,17 @@ async function syncFromSupabase() {
       applyMigration(parsed);
       migrateAbout(parsed);
       state = { ...defaultState, ...parsed,
-        insPosts: parsed.insPosts || state.insPosts, wvsPosts: parsed.wvsPosts || state.wvsPosts,
-        tmiItems: parsed.tmiItems || state.tmiItems, stageItems: parsed.stageItems || state.stageItems,
-        records: parsed.records || state.records,
+        insPosts: parsed.insPosts || [], wvsPosts: parsed.wvsPosts || [],
+        tmiItems: parsed.tmiItems || [], stageItems: parsed.stageItems || [],
+        records: parsed.records || [],
         customSections: parsed.customSections || [],
         deletedSections: parsed.deletedSections || [] };
       sortAll();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      renderAll();
+      return true; // 有数据
     }
   } catch (e) {}
+  return false;
 }
 
 /* ===== 字段配置（驱动模态框表单）===== */
@@ -136,47 +137,10 @@ const defaultState = {
     link: '',
     images: []
   },
-  insPosts: [
-    {
-      date: '2026-07-10',
-      title: '新照片与短视频',
-      description: '把金道勋在日常和舞台里露出的那种轻柔气质，一张一张地收进你的记忆里。',
-      detailText: '',
-      tag: '新动态',
-      link: '',
-      images: []
-    },
-    {
-      date: '2026-06-28',
-      title: '舞台后花絮',
-      description: '记录 backstage 的小动作、服装细节和那些只在镜头里才看得到的瞬间。',
-      detailText: '',
-      tag: '花絮',
-      link: '',
-      image: ''
-    }
-  ],
-  wvsPosts: [
-    {
-      date: '2026-07-06',
-      title: 'Weverse 留言与公告',
-      description: '把官方留言、特别更新和他留下的每一句话都和你心里的情绪串在一起。',
-      detailText: '',
-      tag: '公告',
-      link: '',
-      image: ''
-    }
-  ],
-  tmiItems: [
-    { date: '2026-07-01', title: '舞台前的习惯', text: '每次上台前都会先看一眼镜子，像是在给自己一次最后的确认。', link: '', image: '' },
-    { date: '2026-06-15', title: '最爱的互动方式', text: '他总会在直播或留言里留下很轻的笑意，让人一下子就会心一软。', link: '', image: '' },
-    { date: '2026-05-20', title: '最想记住的一句', text: '把那句让你想起他的台词、眼神和那种温柔的瞬间，写进这里。', link: '', image: '' }
-  ],
-  stageItems: [
-    { date: '2026.07', title: '演唱会舞台', text: '那一刻的站姿和眼神，让人忍不住想把它们永久留在屏幕里。', link: '', image: '' },
-    { date: '2026.05', title: '音乐节登场', text: '现场的热闹与他的专注，让每一个镜头都像在发光。', link: '', image: '' },
-    { date: '2026.03', title: '特别舞台', text: '那场特别编排让所有人都记住了他站在舞台中央的模样。', link: '', image: '' }
-  ],
+  insPosts: [],
+  wvsPosts: [],
+  tmiItems: [],
+  stageItems: [],
   records: [],
   customSections: [],
   deletedSections: [],
@@ -190,10 +154,9 @@ let editMode = false;
 let modalState = { type: null, index: null, mode: 'view' }; // 'view' | 'edit' | 'create'
 
 /* ===== 持久化（Supabase + localStorage 双写）===== */
-function loadState() {
-  loadFromLocal();
-  // 后台从云端拉数据（fetch 直连，无 CDN 依赖）
-  syncFromSupabase().then(() => renderAll()).catch(() => {});
+async function loadState() {
+  const ok = await syncFromSupabase(); // 等云端
+  if (!ok) loadFromLocal();           // 云端失败才读本地
 }
 
 function loadFromLocal() {
@@ -1412,8 +1375,8 @@ function attachEvents() {
 }
 
 /* ===== 初始化 ===== */
-function initPage() {
-  loadState();
+async function initPage() {
+  await loadState();
   renderAll();
   handleEditToggle();
   attachEvents();
