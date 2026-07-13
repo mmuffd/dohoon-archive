@@ -735,6 +735,17 @@ main {
 }
 .more-link:hover { background: rgba(255,143,179,0.08); }
 
+/* BGM 标记 */
+.card-bgm {
+  display: inline-block;
+  background: rgba(255,143,179,0.12);
+  color: var(--accent);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-bottom: 0.3rem;
+}
+
 /* 卡片图片计数 */
 .img-count {
   position: absolute;

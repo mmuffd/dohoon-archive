@@ -67,6 +67,7 @@ const FIELD_CONFIGS = {
   insPosts: [
     { key: 'date', label: '日期', type: 'date' },
     { key: 'detailText', label: '正文', type: 'textarea' },
+    { key: 'bgm', label: '🎵 BGM 链接', type: 'url' },
     { key: 'images', label: '🖼 图片', type: 'files' }
   ],
   wvsPosts: [
@@ -353,8 +354,9 @@ function makeCard(items, type, index, cardClass, label, date, textSource) {
   const countHtml = imgs.length > 1 ? `<span class="img-count">${imgs.length} 张图片</span>` : '';
   const title = textSource ? (textSource(item) || '').slice(0, 30) : '';
   const titleHtml = title.length >= 30 ? title + '...' : title;
+  const bgmHtml = (type === 'insPosts' && item.bgm) ? `<div class="card-bgm">🎵 BGM</div>` : '';
   return `<article class="${cardClass}" data-type="${type}" data-index="${index}">
-    ${imgHtml}${countHtml}
+    ${imgHtml}${countHtml}${bgmHtml}
     <span class="post-label">${label}</span>
     <div class="post-meta">${date(item) || ''}</div>
     <h3>${titleHtml || '新帖子'}</h3>
