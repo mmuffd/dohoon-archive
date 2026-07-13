@@ -354,8 +354,9 @@ function makeCard(items, type, index, cardClass, label, date, textSource) {
   const countHtml = imgs.length > 1 ? `<span class="img-count">${imgs.length} 张图片</span>` : '';
   const title = textSource ? (textSource(item) || '').slice(0, 30) : '';
   const titleHtml = title.length >= 30 ? title + '...' : title;
+  const fullText = (item.detailText || item.text || '').replace(/"/g, '&quot;');
   const bgmHtml = (type === 'insPosts' && item.bgm) ? `<div class="card-bgm">🎵 BGM</div>` : '';
-  return `<article class="${cardClass}" data-type="${type}" data-index="${index}">
+  return `<article class="${cardClass}" data-type="${type}" data-index="${index}" data-fulltext="${fullText}">
     ${imgHtml}${countHtml}${bgmHtml}
     <span class="post-label">${label}</span>
     <div class="post-meta">${date(item) || ''}</div>
@@ -433,7 +434,7 @@ function renderCustomSections() {
         ${(sec.items || []).slice(0, MAX_PREVIEW).map((item, i) => {
           const imgs = item.images || [];
           const thumb = imgs.length ? imgs[0] : '';
-          return `<article class="card" data-type="${csTypeFromId(sec.id)}" data-index="${i}">
+          return `<article class="card" data-type="${csTypeFromId(sec.id)}" data-index="${i}" data-fulltext="${(item.text||'').replace(/"/g,'&quot;')}">
             ${thumb ? `<img src="${thumb}" class="card-thumb" alt="" />` : ''}
             ${imgs.length > 1 ? `<span class="img-count">${imgs.length} 张图片</span>` : ''}
             <div class="post-meta">${item.date || ''}</div>
@@ -1120,7 +1121,11 @@ function applyFilters() {
   // 1. 所有卡片：过滤 + 高亮
   document.querySelectorAll('.card, .timeline-item, .record-card').forEach(card => {
     let show = true;
-    if (keyword) show = (card.textContent||'').toLowerCase().includes(keyword);
+    if (keyword) {
+      // 用 data-fulltext 或卡片完整文本匹配（含截断前的正文）
+      const full = (card.dataset.fulltext || card.textContent || '').toLowerCase();
+      show = full.includes(keyword);
+    }
     if (show && pickDate) {
       const de = card.querySelector('.post-meta,.timeline-date,.record-meta');
       show = normalizeDate(de?.textContent?.trim()||'').startsWith(pickDate);
