@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全部帖子</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .detail-bar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+    padding: 0.8rem 1rem;
+    backdrop-filter: blur(18px);
+    background: rgba(255, 247, 251, 0.95);
+    border-bottom: 1px solid var(--border);
+  }
+  .detail-bar h2 { margin: 0; font-size: 1.1rem; }
+  .detail-bar .count { color: var(--muted); font-size: 0.85rem; margin-left: 0.5rem; }
+  .detail-bar .back { cursor: pointer; text-decoration: none; color: var(--accent); font-weight: 600; }
+  .detail-main { width: min(1100px, calc(100% - 1.2rem)); margin: 0 auto; padding: 1rem 0 3rem; }
+  .empty-msg { text-align: center; padding: 3rem; color: var(--muted); }
+  /* 简易灯箱 */
+  .lbx { display:none; position:fixed; inset:0; z-index:3000; align-items:center; justify-content:center; }
+  .lbx.on { display:flex; }
+  .lbx-bg { position:absolute; inset:0; background:rgba(0,0,0,0.85); cursor:pointer; }
+  .lbx img { position:relative; z-index:1; max-width:90vw; max-height:85vh; object-fit:contain; border-radius:12px; }
+  .lbx-close { position:absolute; top:1rem; right:1.5rem; z-index:2; background:rgba(255,255,255,0.15); border:0; color:#fff; font-size:2rem; width:44px; height:44px; border-radius:50%; cursor:pointer; }
+  .lbx-nav { position:absolute; top:50%; transform:translateY(-50%); z-index:2; background:rgba(255,255,255,0.12); border:0; color:#fff; font-size:1.6rem; width:44px; height:44px; border-radius:50%; cursor:pointer; }
+  .lbx-nav:hover { background:rgba(255,255,255,0.3); }
+  .lbx-dl { position:absolute; bottom:1.5rem; z-index:2; padding:0.5rem 1rem; background:rgba(255,255,255,0.15); color:#fff; border:1px solid rgba(255,255,255,0.25); border-radius:999px; text-decoration:none; font-size:0.85rem; }
+  .lbx-counter { position:absolute; bottom:1.5rem; left:50%; transform:translateX(-50%); color:#fff; font-size:0.85rem; z-index:2; }
+  /* 轮播 */
+  .csr { position:relative; overflow:hidden; border-radius:16px; margin-bottom:0.3rem; }
+  .csr-track { display:flex; transition:transform 0.3s; }
+  .csr-slide { min-width:100%; max-height:380px; object-fit:contain; background:rgba(0,0,0,0.03); cursor:zoom-in; }
+  .csr-ctrls { display:flex; align-items:center; justify-content:center; gap:0.8rem; padding:0.5rem 0; }
+  .csr-btn { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:var(--panel); cursor:pointer; font-size:1rem; display:grid; place-items:center; color:var(--text); }
+  .csr-dot { width:8px; height:8px; border-radius:50%; background:var(--border); cursor:pointer; transition:background 0.2s; }
+  .csr-dot.on { background:var(--accent); }
+  .csr-counter { text-align:center; font-size:0.8rem; color:var(--muted); padding-bottom:0.3rem; }
+</style>
+</head>
+<body>
+
+<div id="lightbox" class="lbx">
+  <div class="lbx-bg"></div>
+  <button class="lbx-close">&times;</button>
+  <button class="lbx-nav" style="left:1rem;" onclick="window._lbxPrev()">←</button>
+  <button class="lbx-nav" style="right:1rem;" onclick="window._lbxNext()">→</button>
+  <span class="lbx-counter" id="lbx-counter"></span>
+  <a class="lbx-dl" id="lbx-dl" download target="_blank">↓ 保存原图</a>
+  <img id="lbx-img" src="" alt="">
+</div>
+
+<div class="detail-bar">
+  <a class="back" href="index.html">← 返回</a>
+  <h2 id="detail-title">全部帖子</h2>
+  <span class="count" id="detail-count"></span>
+  <div style="display:flex;gap:0.5rem;">
+    <button id="detail-edit-toggle" class="btn small" type="button">进入编辑模式</button>
+    <button id="detail-add-btn" class="btn small btn-primary" type="button" style="display:none;">+ 新增帖子</button>
+  </div>
+</div>
+
+<main class="detail-main">
+  <div id="detail-cards" class="card-grid"></div>
+  <div id="empty-msg" class="empty-msg" style="display:none;">暂无帖子</div>
+</main>
+
+<script>
+const STORAGE_KEY = 'dohoon_archive_state_v1';
+const EDIT_PASSWORD = 'ff060526';
+const SUPABASE_URL = 'https://fcxwfdawbydrkwdnfeth.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjeHdmZGF3Ynlkcmt3ZG5mZXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NTg0NDgsImV4cCI6MjA5OTQzNDQ0OH0.Skp3sCQnseLTjKgdDkNThppHU-IzGzYwcBkfmuaQTOs';
+let state = null, editMode = false, pageType = '';
+
+function loadState(){ try{var s=localStorage.getItem(STORAGE_KEY);if(s)state=JSON.parse(s);}catch(e){} }
+function saveState(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); uploadToSupabase(); }
+async function uploadToSupabase(){ if(!editMode)return; try{var r=await fetch(SUPABASE_URL+'/rest/v1/rpc/update_state',{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({p_state:state,p_password:EDIT_PASSWORD})});}catch(e){} }
+function getItems(){ if(!state)return[]; if(pageType.startsWith('custom_')){ var id=pageType.replace('custom_',''),sec=(state.customSections||[]).find(function(s){return s.id===id;}); return sec?sec.items||[]:[]; } return state[pageType]||[]; }
+
+function readFileAsDataUrl(file){ return new Promise(function(r){ if(!file){r('');return;} var f=new FileReader(); f.onload=function(){r(f.result||'');}; f.onerror=function(){r('');}; f.readAsDataURL(file); }); }
+async function uploadImg(file){ try{ var e=(file.name.split('.').pop()||'jpg').toLowerCase(),fn=Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+e,a=await fetch(SUPABASE_URL+'/storage/v1/object/images/'+fn,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY},body:file}); if(a.ok)return SUPABASE_URL+'/storage/v1/object/public/images/'+fn; throw 0; }catch(e){ return await readFileAsDataUrl(file); } }
+async function uploadAll(fs){ var u=[]; for(var i=0;i<fs.length;i++){ var x=await uploadImg(fs[i]); if(x)u.push(x); } return u; }
+
+var LABELS={insPosts:'INS 动态',wvsPosts:'WVS 动态',tmiItems:'TMI',stageItems:'舞台',records:'记忆册'};
+
+function render(items){
+  var c=document.getElementById('detail-cards'),e=document.getElementById('empty-msg');
+  if(!items||!items.length){ e.style.display='block'; c.innerHTML=''; return; } e.style.display='none';
+  var cls='card'; if(pageType==='stageItems')cls='timeline-item'; if(pageType==='records')cls='record-card';
+  c.innerHTML=items.map(function(it,i){
+    var imgs=it.images||[],th=imgs.length?imgs[0]:'';
+    var ih=th?'<img src="'+th+'" class="card-thumb lbx-src" alt="" />':'';
+    var ch=imgs.length>1?'<span class="img-count">'+imgs.length+' 张图片</span>':'';
+    var d=it.date||it.createdAt||'',t=it.text||it.detailText||'';
+    var tit=it.title||t.slice(0,30)||'新帖子';
+    return '<article class="'+cls+'" data-idx="'+i+'">'+ih+ch+'<div class="post-meta">'+d+'</div><h3>'+(tit.length>=30?tit.slice(0,30)+'...':tit)+'</h3></article>';
+  }).join('');
+  document.getElementById('detail-count').textContent=items.length+' 条';
+}
+
+/* === 灯箱（多图导航） === */
+var lbxImgs=[], lbxIdx=0;
+function openLbx(allImgs,idx){ lbxImgs=allImgs; lbxIdx=idx; refreshLbx(); document.getElementById('lightbox').classList.add('on'); document.body.style.overflow='hidden'; }
+function closeLbx(){ document.getElementById('lightbox').classList.remove('on'); document.body.style.overflow=''; }
+function refreshLbx(){
+  var url=lbxImgs[lbxIdx]||'';
+  document.getElementById('lbx-img').src=url;
+  var dl=document.getElementById('lbx-dl');
+  dl.href=url;
+  dl.download='image.'+((url.split('.').pop()||'jpg').split(/[?#]/)[0]);
+  document.getElementById('lbx-counter').textContent = lbxImgs.length>1 ? (lbxIdx+1)+' / '+lbxImgs.length : '';
+}
+window._lbxPrev=function(){ if(lbxIdx>0){lbxIdx--;refreshLbx();} };
+window._lbxNext=function(){ if(lbxIdx<lbxImgs.length-1){lbxIdx++;refreshLbx();} };
+document.querySelector('.lbx-bg').addEventListener('click',closeLbx);
+document.querySelector('.lbx-close').addEventListener('click',closeLbx);
+document.addEventListener('keydown',function(e){
+  var lb=document.getElementById('lightbox'); if(!lb.classList.contains('on')) return;
+  if(e.key==='Escape') closeLbx();
+  if(e.key==='ArrowLeft'&&lbxIdx>0){lbxIdx--;refreshLbx();}
+  if(e.key==='ArrowRight'&&lbxIdx<lbxImgs.length-1){lbxIdx++;refreshLbx();}
+});
+
+/* === 编辑模式 === */
+function toggleEditMode(){
+  if(editMode){
+    editMode=false;
+    document.getElementById('detail-edit-toggle').textContent='进入编辑模式';
+    document.getElementById('detail-add-btn').style.display='none';
+    return;
+  }
+  var p=prompt('请输入编辑密码：'); if(p!==EDIT_PASSWORD){ if(p!==null)alert('密码错误'); return; }
+  editMode=true;
+  document.getElementById('detail-edit-toggle').textContent='保存并退出';
+  document.getElementById('detail-add-btn').style.display='';
+}
+
+/* === 模态框 === */
+function openItemModal(idx,items){
+  var n=idx===null,it=n?{}:(items[idx]||{}),imgs=it.images||[];
+  var ov=document.createElement('div'); ov.className='modal active';
+  ov.style.cssText='display:flex;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;';
+  var h='<div class="modal-overlay" style="position:absolute;inset:0;background:rgba(90,60,80,0.35);"></div>';
+  h+='<div class="modal-container" style="position:relative;z-index:1;width:min(600px,calc(100vw-2rem));max-height:85vh;overflow-y:auto;background:rgba(255,255,255,0.95);border-radius:24px;padding:1.5rem;box-shadow:0 24px 56px rgba(180,120,150,0.3);">';
+  h+='<div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;"><h2 style="margin:0;">'+(n?'新增':'编辑')+'</h2><button style="width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,143,179,0.12);cursor:pointer;font-size:1.3rem;" onclick="this.closest(\'.modal\').remove()">&times;</button></div>';
+  h+='<div class="modal-body" style="display:flex;flex-direction:column;gap:0.85rem;">';
+
+  var fk=pageType==='records'?'text':'text';
+  var fs=[
+    {key:'date',label:'日期',type:pageType==='records'?'text':'date'},
+    {key:(pageType==='insPosts'||pageType==='wvsPosts'?'detailText':'text'),label:'正文',type:'textarea'},
+    {key:'images',label:'图片',type:'files'}
+  ];
+
+  fs.forEach(function(f){
+    if(f.key==='images'){
+      h+='<div class="modal-field"><label>图片</label>';
+      if(imgs.length){
+        h+='<div class="modal-existing-imgs" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.5rem;">';
+        imgs.forEach(function(img,j){
+          h+='<div style="position:relative;width:80px;height:80px;"><img src="'+img+'" style="width:100%;height:100%;object-fit:cover;border-radius:10px;cursor:pointer;" onclick="var all='+JSON.stringify(imgs)+';openLbx(all,'+j+')"><button data-imgs=\''+JSON.stringify(imgs)+'\' data-idx="'+j+'" style="position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;background:rgba(255,60,60,0.85);color:#fff;border:0;cursor:pointer;font-size:0.75rem;">&times;</button></div>';
+        });
+        h+='</div>';
+      }
+      h+='<input type="file" accept="image/*" multiple data-field="images" style="margin-top:0.5rem;">';
+      h+='</div>';
+    }else if(f.type==='textarea'){
+      h+='<div class="modal-field"><label>'+f.label+'</label><textarea data-field="'+f.key+'" rows="4" style="width:100%;border:1px solid rgba(255,143,179,0.24);border-radius:12px;padding:0.65rem;font:inherit;">'+(it[f.key]||'')+'</textarea></div>';
+    }else{
+      h+='<div class="modal-field"><label>'+f.label+'</label><input type="'+f.type+'" data-field="'+f.key+'" value="'+(it[f.key]||'').replace(/"/g,'&quot;')+'" style="width:100%;border:1px solid rgba(255,143,179,0.24);border-radius:12px;padding:0.65rem;font:inherit;"></div>';
+    }
+  });
+
+  h+='</div>';
+  h+='<div style="display:flex;justify-content:flex-end;gap:0.6rem;margin-top:1.3rem;padding-top:1rem;border-top:1px solid rgba(255,143,179,0.24);">';
+  if(!n) h+='<button class="btn btn-secondary" onclick="window._del()">删除</button>';
+  h+='<button class="btn btn-primary" onclick="window._save()">保存</button>';
+  h+='</div></div>';
+  ov.innerHTML=h;
+  document.body.appendChild(ov);
+  ov.querySelector('.modal-overlay').addEventListener('click',function(){ov.remove();});
+
+  ov.querySelectorAll('[data-imgs]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var arr=JSON.parse(this.dataset.imgs); var j=parseInt(this.dataset.idx);
+      arr.splice(j,1); this.parentElement.remove();
+      var box=this.closest('.modal-existing-imgs');
+      if(box&&!box.querySelector('img')) box.innerHTML='';
+    });
+  });
+
+  window._save=async function(){
+    var data={},newImgs=[];
+    ov.querySelectorAll('.modal-existing-imgs img').forEach(function(x){newImgs.push(x.src);});
+    ov.querySelectorAll('[data-field]').forEach(function(el){
+      if(el.dataset.field==='images') return;
+      data[el.dataset.field]=el.value.trim();
+    });
+    var fi=ov.querySelector('[data-field="images"]');
+    if(fi&&fi.files&&fi.files.length){ var urls=await uploadAll(Array.from(fi.files)); newImgs=newImgs.concat(urls); }
+    data.images=newImgs;
+    if(n){ if(pageType==='records') data.createdAt=new Date().toLocaleString('zh-CN'); items.unshift(data); }
+    else{ for(var k in data)items[idx][k]=data[k]; }
+    saveState(); ov.remove(); render(items);
+  };
+  window._del=function(){ if(!confirm('确定删除？'))return; items.splice(idx,1); saveState(); ov.remove(); render(items); };
+}
+
+/* === 卡片点击 === 游客也可以点开看原图 */
+document.getElementById('detail-cards').addEventListener('click',function(e){
+  var card=e.target.closest('[data-idx]'); if(!card)return;
+  var idx=parseInt(card.dataset.idx,10);
+  var items=getItems();
+
+  // 点击图片 → 灯箱
+  if(e.target.closest('.lbx-src')){
+    var imgs=(items[idx]||{}).images||[];
+    if(imgs.length){ openLbx(imgs,0); } return;
+  }
+
+  if(editMode){
+    openItemModal(idx,items);
+  }else{
+    // 游客查看 → 只读模态框
+    var it=items[idx],imgs=it.images||[];
+    var ov=document.createElement('div'); ov.className='modal active';
+    ov.style.cssText='display:flex;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;';
+    var hi='<div class="modal-overlay" style="position:absolute;inset:0;background:rgba(90,60,80,0.35);"></div>';
+    hi+='<div class="modal-container" style="position:relative;z-index:1;width:min(600px,calc(100vw-2rem));max-height:85vh;overflow-y:auto;background:rgba(255,255,255,0.95);border-radius:24px;padding:1.5rem;box-shadow:0 24px 56px rgba(180,120,150,0.3);">';
+    hi+='<div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;"><h2 style="margin:0;">查看帖子</h2><button style="width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,143,179,0.12);cursor:pointer;font-size:1.3rem;" onclick="this.closest(\'.modal\').remove()">&times;</button></div>';
+    hi+='<div class="modal-body" style="display:flex;flex-direction:column;gap:0.85rem;">';
+    hi+='<div class="modal-field"><label>日期</label><div>'+ (it.date||it.createdAt||'') +'</div></div>';
+    hi+='<div class="modal-field"><label>正文</label><div style="line-height:1.7;">'+(it.text||it.detailText||'').replace(/\n/g,'<br>')+'</div></div>';
+    if(imgs.length===1){
+      hi+='<div class="modal-field"><label>图片（点击放大）</label><img src="'+imgs[0]+'" style="max-width:100%;max-height:380px;object-fit:contain;border-radius:14px;cursor:zoom-in;" onclick="openLbx('+JSON.stringify(imgs)+',0)"></div>';
+    }else if(imgs.length>1){
+      hi+='<div class="modal-field"><label>图片（左右滑动查看 · 点击放大）</label>';
+      hi+='<div class="csr"><div class="csr-track" id="viewer-track">';
+      imgs.forEach(function(s,j){ hi+='<img src="'+s+'" class="csr-slide" onclick="openLbx('+JSON.stringify(imgs)+','+j+')">'; });
+      hi+='</div></div>';
+      hi+='<div class="csr-ctrls"><button class="csr-btn" id="viewer-prev">←</button><div id="viewer-dots">'+imgs.map(function(_,j){return '<span class="csr-dot'+(j===0?' on':'')+'" data-i="'+j+'"></span>';}).join('')+'</div><button class="csr-btn" id="viewer-next">→</button></div>';
+      hi+='<div class="csr-counter">共 '+imgs.length+' 张</div>';
+      hi+='</div>';
+    }
+    hi+='</div></div>';
+    ov.innerHTML=hi;
+    document.body.appendChild(ov);
+
+    // 初始化轮播
+    if(imgs.length>1){
+      var track=ov.querySelector('#viewer-track'), dots=ov.querySelectorAll('#viewer-dots .csr-dot'), cur=0;
+      function go(i){ if(i<0||i>=imgs.length)return; cur=i; track.style.transform='translateX(-'+(cur*100)+'%)'; dots.forEach(function(d,j){d.classList.toggle('on',j===cur);}); }
+      ov.querySelector('#viewer-prev').addEventListener('click',function(){go(cur-1);});
+      ov.querySelector('#viewer-next').addEventListener('click',function(){go(cur+1);});
+      dots.forEach(function(d){d.addEventListener('click',function(){go(parseInt(this.dataset.i,10));});});
+      var sx=0; track.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;});
+      track.addEventListener('touchend',function(e){var d=sx-e.changedTouches[0].clientX; if(Math.abs(d)>50) go(d>0?cur+1:cur-1);});
+    }
+
+    ov.querySelector('.modal-overlay').addEventListener('click',function(){ov.remove();});
+  }
+});
+
+/* === 事件 === */
+document.getElementById('detail-edit-toggle').addEventListener('click',toggleEditMode);
+document.getElementById('detail-add-btn').addEventListener('click',function(){
+  openItemModal(null,getItems());
+});
+
+function init(){
+  loadState();
+  pageType=new URLSearchParams(window.location.search).get('type')||'insPosts';
+  var label=pageType.startsWith('custom_')?(((state&&state.customSections||[]).find(function(s){return s.id===pageType.replace('custom_','')})||{}).name||'自定义区'):(LABELS[pageType]||pageType);
+  document.getElementById('detail-title').textContent=label;
+  document.title=label+' - Dohoon Archive';
+  render(getItems());
+}
+init();
+</script>
+</body>
+</html>

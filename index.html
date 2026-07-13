@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dohoon Archive</title>
+    <meta
+      name="description"
+      content="TWS 金道勋的专属记忆站，记录他的 Instagram、Weverse 动态、TMI 和舞台瞬间。"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#home">DOHOON ARCHIVE</a>
+      <nav class="nav-links" aria-label="主导航">
+        <a class="nav-fixed" href="#about">简介</a>
+        <a class="nav-fixed" href="#ins-posts">INS</a>
+        <a class="nav-fixed" href="#wvs-posts">WVS</a>
+        <a class="nav-fixed" href="#records">记忆册</a>
+        <span id="nav-custom"></span>
+      </nav>
+      <div class="header-actions">
+        <button id="edit-toggle" class="btn small" type="button">进入编辑模式</button>
+      </div>
+    </header>
+
+    <div class="search-bar">
+      <div class="search-inner">
+        <input type="text" id="search-input" class="search-input" placeholder="🔍 搜索帖子正文...">
+        <input type="date" id="search-date" class="search-date">
+        <button id="search-clear" class="btn small" type="button">清除</button>
+      </div>
+    </div>
+
+    <main id="home">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow" data-edit-key="eyebrow">TWS · Kim Dohoon</p>
+          <h1 data-edit-key="heroTitle">为金道勋打造一座只属于你的追星记忆站</h1>
+          <p class="hero-text" data-edit-key="heroText">
+            这里用来收纳他在 Instagram 与 Weverse 上发布的动态、舞台上的每一次亮相、以及那些让人一眼就想收藏的 TMI 小细节。
+          </p>
+          <div class="hero-actions">
+            <a href="#ins-posts" class="btn btn-primary">查看动态</a>
+            <a href="#tmi" class="btn btn-secondary">看看 TMI</a>
+          </div>
+        </div>
+        <div class="hero-card">
+          <div class="hero-card-inner">
+            <h2 data-edit-key="heroCardTitle">Kim Dohoon</h2>
+            <p data-edit-key="heroCardText">把每一次更新都整理成一张张卡片，方便你随时回看他在舞台上和生活里留下的每一份光。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section about-section" id="about" data-section-key="about">
+        <article class="about-card" data-type="about" data-index="0">
+          <div class="avatar-shell"><span>DO</span></div>
+          <div class="about-content">
+            <p class="eyebrow" data-edit-key="aboutEyebrow">ABOUT</p>
+            <h3 data-edit-key="aboutTitle">Kim Dohoon · TWS</h3>
+            <p class="about-text" data-edit-key="aboutText">
+              这是你为金道勋建立的专属页面，记录他在舞台上、镜头前、留言里留下的每一道光。
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section class="section" id="ins-posts" data-section-key="insPosts">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow" data-edit-key="insEyebrow">Instagram</p>
+            <h2 data-edit-key="insPostsTitle">记录金道勋的 Instagram 动态</h2>
+          </div>
+          <button id="add-ins-post-btn" class="mini-btn" type="button">+ 新增 INS 动态</button>
+        </div>
+        <div id="ins-feed-list" class="card-grid"></div>
+      </section>
+
+      <section class="section" id="wvs-posts" data-section-key="wvsPosts">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow" data-edit-key="wvsEyebrow">Weverse</p>
+            <h2 data-edit-key="wvsPostsTitle">记录金道勋的 Weverse 动态</h2>
+          </div>
+          <button id="add-wvs-post-btn" class="mini-btn" type="button">+ 新增 WVS 动态</button>
+        </div>
+        <div id="wvs-feed-list" class="card-grid"></div>
+      </section>
+
+      <section class="section" id="tmi" data-section-key="tmiItems">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow" data-edit-key="tmiEyebrow">TMI</p>
+            <h2 data-edit-key="tmiTitle">那些你想反复翻看的细节</h2>
+          </div>
+          <button id="add-tmi-btn" class="mini-btn" type="button">+ 新增 TMI</button>
+        </div>
+        <div id="tmi-list" class="card-grid"></div>
+      </section>
+
+      <section class="section" id="stage" data-section-key="stageItems">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow" data-edit-key="stageEyebrow">舞台</p>
+            <h2 data-edit-key="stageTitle">每一场演出都是一段记忆</h2>
+          </div>
+          <button id="add-stage-btn" class="mini-btn" type="button">+ 新增舞台</button>
+        </div>
+        <div id="stage-list" class="timeline"></div>
+      </section>
+
+      <section class="section" id="records" data-section-key="records">
+        <div class="section-header">
+          <div>
+            <p class="eyebrow" data-edit-key="recordsEyebrow">记忆册</p>
+            <h2 data-edit-key="recordsTitle">照片与文字记录</h2>
+          </div>
+          <button id="toggle-record-form-btn" class="mini-btn" type="button">+ 新增记录</button>
+        </div>
+
+        <div id="record-form" class="record-form">
+          <textarea id="record-text" class="record-textarea" rows="4" placeholder="写下你想记住的文字"></textarea>
+          <input id="record-image" class="record-input" type="file" accept="image/*" multiple />
+          <button id="save-record-btn" class="btn primary" type="button">保存记录</button>
+        </div>
+
+        <div id="records-list" class="record-list"></div>
+      </section>
+
+      <!-- 自定义区块 -->
+      <div id="custom-sections"></div>
+
+      <!-- 新增区域按钮（编辑模式可见） -->
+      <div id="cs-actions" class="cs-actions" style="display:none;">
+        <button id="add-section-btn" class="btn btn-primary" type="button">+ 新增区域</button>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p data-edit-key="footerText">把这里当作你专属于金道勋的追星档案库，慢慢长大。</p>
+    </footer>
+
+    <!-- 详情模态框 -->
+    <div id="detail-modal" class="modal">
+      <div class="modal-overlay"></div>
+      <div class="modal-container">
+        <div class="modal-header">
+          <h2 id="modal-title"></h2>
+          <button id="modal-close" class="modal-close-btn" type="button">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body"></div>
+        <div class="modal-footer" id="modal-footer">
+          <button id="modal-delete-btn" class="btn btn-secondary" type="button">删除</button>
+          <button id="modal-save-btn" class="btn btn-primary" type="button">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图片灯箱 -->
+    <div id="image-lightbox" class="lightbox">
+      <div class="lightbox-overlay"></div>
+      <button id="lightbox-close" class="lightbox-close" type="button">&times;</button>
+      <button id="lightbox-prev" class="lightbox-nav" type="button" style="left:1rem;">←</button>
+      <button id="lightbox-next" class="lightbox-nav" type="button" style="right:1rem;">→</button>
+      <div class="lightbox-actions">
+        <span id="lightbox-counter" style="color:#fff;font-size:0.85rem;"></span>
+        <a id="lightbox-download" class="btn btn-secondary" download="image.png" href="#">↓ 保存原图</a>
+      </div>
+      <img id="lightbox-img" src="" alt="" />
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

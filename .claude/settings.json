@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(start \"\" \"c:\\\\Users\\\\Lenovo\\\\Desktop\\\\新建文件夹\\\\index.html\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:mmuffd.github.io)",
+      "Bash(ls -la \"c:\\\\Users\\\\Lenovo\\\\Desktop\\\\新建文件夹\\\\\")",
+      "Read(//c/Users/Lenovo/Desktop/**)",
+      "Bash(wc -l \"c:\\\\\\\\Users\\\\\\\\Lenovo\\\\\\\\Desktop\\\\\\\\新建文件夹\\\\\\\\styles.css\")"
+    ]
+  }
+}
