@@ -1371,10 +1371,16 @@ function attachEvents() {
 
 /* ===== 初始化 ===== */
 async function initPage() {
-  await loadState();
+  // 先渲染默认值（全是"正在加载中..."）
+  state = { ...defaultState };
   renderAll();
   handleEditToggle();
   attachEvents();
+  updateEditMode(false);
+
+  // 等云端数据到账 → 覆盖 → 重渲染
+  await loadState();
+  renderAll();
   updateEditMode(false);
 }
 

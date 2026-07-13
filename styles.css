@@ -138,6 +138,12 @@ img {
   border-color: var(--accent);
 }
 
+/* 加载中隐藏文字闪烁 */
+body.loading [data-edit-key], body.loading .about-text, body.loading .about-content h3, body.loading footer p, body.loading .hero-text {
+  visibility: hidden;
+}
+body.loading .eyebrow { visibility: hidden; }
+
 main {
   width: min(1100px, calc(100% - 1.2rem));
   margin: 0 auto;
